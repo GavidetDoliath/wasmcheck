@@ -23,3 +23,5 @@ jobs:
         run: cargo test
       - name: Smoke check on committed fixture
         run: cargo run --quiet -- check --file fixtures/full.wasm --budget "30 KB"
+      - name: Verify the published package
+        run: cargo publish --dry-run

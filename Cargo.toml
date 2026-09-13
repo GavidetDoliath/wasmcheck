@@ -2,9 +2,32 @@
 name = "wasmcheck"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 description = "WASM bundle size budget checker — raw, gzip, brotli, CI gate"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/GavidetDoliath/wasmcheck"
+homepage = "https://github.com/GavidetDoliath/wasmcheck"
+documentation = "https://docs.rs/wasmcheck"
+readme = "README.md"
+keywords = ["wasm", "webassembly", "size", "ci", "bundle"]
+categories = [
+    "command-line-utilities",
+    "development-tools::build-utils",
+    "wasm",
+]
+# Keep the published crate to what `cargo install` and `cargo test` need.
+include = [
+    "/src/**",
+    "/tests/**",
+    "/fixtures/**",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [[bin]]
 name = "wasmcheck"

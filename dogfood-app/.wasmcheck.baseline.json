@@ -1,0 +1,8 @@
+{
+  "target/dx/dogfood-app/release/web/public/assets/*_bg-*.wasm": {
+    "file": "dogfood-app/target/dx/dogfood-app/release/web/public/assets/dogfood-app_bg-dxhf975af1c074f12c.wasm",
+    "raw": 691411,
+    "gzip": 247556,
+    "brotli": 225406
+  }
+}

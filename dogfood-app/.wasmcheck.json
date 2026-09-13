@@ -7,12 +7,5 @@
     "gzip": "250 KB",
     "brotli": null
   },
-  "baseline": {
-    "target/dx/dogfood-app/release/web/public/assets/dogfood-app_bg-dxhf975af1c074f12c.wasm": {
-      "file": "target/dx/dogfood-app/release/web/public/assets/dogfood-app_bg-dxhf975af1c074f12c.wasm",
-      "raw": 691412,
-      "gzip": 240928,
-      "brotli": 205110
-    }
-  }
+  "strict": false
 }
