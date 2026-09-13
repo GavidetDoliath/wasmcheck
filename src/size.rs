@@ -89,9 +89,9 @@ impl fmt::Display for Size {
     /// Formats the size losslessly: `"11 KB"`, `"2 MB"` or `"10700 B"`.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let bytes = self.0;
-        if bytes != 0 && bytes % MIB == 0 {
+        if bytes != 0 && bytes.is_multiple_of(MIB) {
             write!(f, "{} MB", bytes / MIB)
-        } else if bytes != 0 && bytes % KIB == 0 {
+        } else if bytes != 0 && bytes.is_multiple_of(KIB) {
             write!(f, "{} KB", bytes / KIB)
         } else {
             write!(f, "{bytes} B")

@@ -167,10 +167,11 @@ impl Baseline {
         let mut json = serde_json::to_string_pretty(self)?;
         json.push('\n');
 
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() && !parent.exists() {
-                std::fs::create_dir_all(parent)?;
-            }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent)?;
         }
         std::fs::write(path, json).map_err(WasmCheckError::Io)
     }

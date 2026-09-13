@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of saturating to `0` bytes.
 - README: corrected the wasm target triple to
   `target/wasm32-unknown-unknown/release/app.wasm`.
+- `rust-version` corrected from `1.85` to `1.88`. The declared minimum was a
+  promise the crate could not keep: `wasmparser` 0.259 (used by `--top`)
+  declares `rust-version = "1.88"`, so Cargo refuses to build the graph on
+  anything older. A CI job now builds on exactly the declared minimum.
 
 ### Changed
 

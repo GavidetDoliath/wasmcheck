@@ -2,7 +2,10 @@
 name = "wasmcheck"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+# Not 1.85: `wasmparser` 0.259 (used by `--top`) declares 1.88, and Cargo
+# refuses to build a graph containing a package with a newer MSRV. Verified by
+# the `msrv` CI job.
+rust-version = "1.88"
 description = "WASM bundle size budget checker — raw, gzip, brotli, CI gate"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/GavidetDoliath/wasmcheck"

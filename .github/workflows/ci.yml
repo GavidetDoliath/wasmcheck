@@ -25,3 +25,14 @@ jobs:
         run: cargo run --quiet -- check --file fixtures/full.wasm --budget "30 KB"
       - name: Verify the published package
         run: cargo publish --dry-run
+
+  msrv:
+    name: msrv / 1.88
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Must match `rust-version` in Cargo.toml, which is driven by wasmparser.
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build on the declared minimum
+        run: cargo check --all-targets
