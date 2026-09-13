@@ -1,0 +1,19 @@
+[package]
+name = "wasmcheck"
+version = "0.1.0"
+edition = "2024"
+description = "WASM bundle size budget checker — raw, gzip, brotli, CI gate"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "wasmcheck"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+flate2 = "1"
+brotli = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+owo-colors = "4"
+thiserror = "2"
