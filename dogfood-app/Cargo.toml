@@ -1,0 +1,17 @@
+[package]
+name = "dogfood-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dioxus = "0.7"
+serde_json = "1"
+
+[workspace]
+
+# Size matters — this is exactly what wasmcheck will watch.
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"

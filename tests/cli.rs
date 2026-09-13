@@ -177,6 +177,36 @@ fn baseline_updates_config() {
 }
 
 #[test]
+fn glob_files_in_config() {
+    let d = TestDir::new("glob");
+    d.write_wasm("app_bg-abc1234.wasm", 10 * 1024);
+    d.write_wasm("other.txt", 50);
+    fs::write(
+        d.path().join(".wasmcheck.json"),
+        r#"{"files": ["*_bg-*.wasm"], "budget": {"raw": "20 KB"}}"#,
+    )
+    .unwrap();
+
+    let (code, msg) = run_in(d.path(), &["check"]);
+    assert_eq!(code, 0, "{msg}");
+    assert!(msg.contains("app_bg-abc1234.wasm"), "{msg}");
+}
+
+#[test]
+fn glob_no_match_errors() {
+    let d = TestDir::new("glob_nomatch");
+    d.write_wasm("app.wasm", 10 * 1024);
+    fs::write(
+        d.path().join(".wasmcheck.json"),
+        r#"{"files": ["nope-*.wasm"]}"#,
+    )
+    .unwrap();
+    let (code, msg) = run_in(d.path(), &["check"]);
+    assert_ne!(code, 0);
+    assert!(msg.contains("No .wasm file"), "{msg}");
+}
+
+#[test]
 fn delta_reported_in_output() {
     let d = TestDir::new("delta");
     d.write_wasm("app.wasm", 10 * 1024);

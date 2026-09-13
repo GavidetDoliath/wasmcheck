@@ -1,0 +1,14 @@
+{
+  "items": [
+    {"id": 1, "name": "feature-flags", "enabled": true},
+    {"id": 2, "name": "analytics", "enabled": false},
+    {"id": 3, "name": "theming", "enabled": true},
+    {"id": 4, "name": "offline-mode", "enabled": false},
+    {"id": 5, "name": "push-notifications", "enabled": true},
+    {"id": 6, "name": "dark-mode", "enabled": true},
+    {"id": 7, "name": "internationalization", "enabled": true},
+    {"id": 8, "name": "virtual-scrolling", "enabled": false},
+    {"id": 9, "name": "drag-and-drop", "enabled": true},
+    {"id": 10, "name": "keyboard-shortcuts", "enabled": true}
+  ]
+}

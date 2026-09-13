@@ -129,7 +129,27 @@ fn resolve_files(
     if let Some(cfg) = config
         && !cfg.files.is_empty()
     {
-        return Ok(cfg.files.clone());
+        let mut resolved: Vec<String> = Vec::new();
+        for entry in &cfg.files {
+            if entry.contains(['*', '?', '[']) {
+                let mut matches: Vec<String> = glob::glob(entry)
+                    .map_err(|e| WasmCheckError::Io(std::io::Error::other(e.to_string())))?
+                    .filter_map(|p| p.ok())
+                    .filter(|p| p.is_file())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect();
+                matches.sort();
+                resolved.extend(matches);
+            } else {
+                resolved.push(entry.clone());
+            }
+        }
+        resolved.sort();
+        resolved.dedup();
+        if resolved.is_empty() {
+            return Err(WasmCheckError::NoWasmFound);
+        }
+        return Ok(resolved);
     }
 
     // auto-detect in current directory

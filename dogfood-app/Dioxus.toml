@@ -1,0 +1,5 @@
+[application]
+name = "dogfood-app"
+
+[web]
+title = "wasmcheck dogfood"

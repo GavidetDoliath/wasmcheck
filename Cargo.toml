@@ -18,6 +18,7 @@ serde_json = "1"
 owo-colors = "4"
 thiserror = "2"
 wasmparser = "0.259.0"
+glob = "0.3.4"
 
 [dev-dependencies]
 serde_json = "1"
