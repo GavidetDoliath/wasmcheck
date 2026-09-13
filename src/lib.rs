@@ -23,6 +23,8 @@ pub enum WasmCheckError {
     BudgetExceeded(String),
     #[error("Failed to serialize config: {0}")]
     Serialize(#[from] serde_json::Error),
+    #[error("Wasm parse error: {0}")]
+    WasmParse(String),
 }
 
 pub const CONFIG_FILE: &str = ".wasmcheck.json";
@@ -130,6 +132,65 @@ pub fn format_size(bytes: u64) -> String {
     } else {
         format!("{bytes} B")
     }
+}
+
+/// Largest functions in the wasm module, by size footprint in the binary.
+///
+/// Best-effort: sizes reflect each function body's byte range in the code
+/// section. Names come from the name section when present; otherwise the
+/// function index is used. Returns `(size, display_name)` sorted descending.
+pub fn top_functions(path: &str, n: usize) -> Result<Vec<(u64, String)>, WasmCheckError> {
+    use wasmparser::{KnownCustom, Parser, Payload};
+
+    let data = std::fs::read(path).map_err(WasmCheckError::Io)?;
+
+    // (index -> size) collected from the code section
+    let mut sizes: Vec<(u32, u64)> = Vec::new();
+    // (index -> name) from the name section, if present
+    let mut names: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
+
+    for payload in Parser::new(0).parse_all(&data) {
+        match payload.map_err(|e| WasmCheckError::WasmParse(e.to_string()))? {
+            Payload::CodeSectionEntry(body) => {
+                let index = sizes.len() as u32;
+                let range = body.range();
+                sizes.push((index, range.end - range.start));
+            }
+            Payload::CustomSection(custom) => {
+                if let KnownCustom::Name(name_section) = custom.as_known() {
+                    use wasmparser::Name;
+                    for name in name_section.into_iter() {
+                        if let Name::Function(name_map) =
+                            name.map_err(|e| WasmCheckError::WasmParse(e.to_string()))?
+                        {
+                            for naming in name_map.into_iter().flatten() {
+                                names.insert(naming.index, naming.name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if sizes.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut ranked: Vec<(u64, String)> = sizes
+        .into_iter()
+        .map(|(index, size)| {
+            let name = names
+                .get(&index)
+                .cloned()
+                .unwrap_or_else(|| format!("func_{index}"));
+            (size, name)
+        })
+        .collect();
+    ranked.sort_by_key(|a| std::cmp::Reverse(a.0));
+    ranked.truncate(n);
+    Ok(ranked)
 }
 
 #[derive(Debug, Clone)]
@@ -407,5 +468,28 @@ mod tests {
         assert_eq!(delta_str(1000, 1024), "-24 B");
         assert_eq!(delta_str(1100, 1024), "+76 B");
         assert_eq!(delta_str(1024, 1024), "±0 B");
+    }
+
+    #[test]
+    fn test_top_functions_on_fixture() {
+        let path = format!("{}/fixtures/full.wasm", env!("CARGO_MANIFEST_DIR"));
+        let ranked = top_functions(&path, 3).unwrap();
+        assert_eq!(ranked.len(), 3);
+        // sorted descending
+        assert!(ranked[0].0 >= ranked[1].0);
+        assert!(ranked[1].0 >= ranked[2].0);
+        // sizes are byte-consistent: top function < total file size
+        let total = std::fs::metadata(&path).unwrap().len();
+        assert!(ranked[0].0 <= total);
+        // names are non-empty
+        assert!(!ranked[0].1.is_empty());
+    }
+
+    #[test]
+    fn test_top_functions_truncates() {
+        let path = format!("{}/fixtures/full.wasm", env!("CARGO_MANIFEST_DIR"));
+        let ranked = top_functions(&path, 100).unwrap();
+        assert!(ranked.len() <= 100);
+        assert!(!ranked.is_empty());
     }
 }

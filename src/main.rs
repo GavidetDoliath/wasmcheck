@@ -4,7 +4,7 @@ use std::process;
 
 use wasmcheck::{
     Budget, CONFIG_FILE, Config, Metric, SizeReport, WasmCheckError, delta_str, find_wasm_files,
-    format_size,
+    format_size, top_functions,
 };
 
 #[derive(Parser)]
@@ -185,6 +185,9 @@ fn run_check(args: CheckArgs) -> Result<(), WasmCheckError> {
             }
             Format::Table => {
                 print_table(&report, baseline, effective_budget.as_ref())?;
+                if let Some(top) = args.top {
+                    print_top(file, top)?;
+                }
             }
         }
 
@@ -301,6 +304,25 @@ fn print_table(
             line.push_str(&format!("  {}", "over budget".red().bold()));
         }
         println!("{line}");
+    }
+    println!();
+    Ok(())
+}
+
+fn print_top(path: &str, n: usize) -> Result<(), WasmCheckError> {
+    println!("  {} (best-effort):", "top N by function size".dimmed());
+    let ranked = top_functions(path, n)?;
+    if ranked.is_empty() {
+        println!("    (no functions found)");
+        return Ok(());
+    }
+    for (size, name) in ranked {
+        let truncated: String = if name.len() > 60 {
+            name.chars().take(57).collect::<String>() + "..."
+        } else {
+            name
+        };
+        println!("  {:<70} {:>12}", truncated.dimmed(), format_size(size));
     }
     println!();
     Ok(())
