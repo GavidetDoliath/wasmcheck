@@ -1,0 +1,24 @@
+name: 'wasmcheck'
+description: 'Check WASM bundle sizes against budgets and gate the build'
+inputs:
+  wasmcheck-version:
+    description: 'wasmcheck version to install (defaults to latest)'
+    required: false
+    default: 'latest'
+outputs:
+  result:
+    description: 'exit code received from wasmcheck check'
+    value: ${{ steps.check.outputs.code }}
+runs:
+  using: composite
+  steps:
+    - name: Install wasmcheck
+      shell: bash
+      run: cargo binstall -y wasmcheck@${{ inputs.wasmcheck-version }}
+    - name: Run wasmcheck
+      id: check
+      shell: bash
+      run: |
+        wasmcheck check --format json || code=$?
+        echo "code=${code:-0}" >> "$GITHUB_OUTPUT"
+        exit ${code:-0}
