@@ -38,8 +38,13 @@ Rust CI.
 ## Install
 
 ```sh
-cargo install wasmcheck        # once the crate is on crates.io
-cargo install --git https://github.com/GavidetDoliath/wasmcheck   # until then
+cargo install wasmcheck
+```
+
+Or straight from the repository to live on the latest commit:
+
+```sh
+cargo install --git https://github.com/GavidetDoliath/wasmcheck
 ```
 
 ## Quick start (2 minutes)
