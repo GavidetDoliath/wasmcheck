@@ -13,6 +13,28 @@ no budget tool — only profilers.
 - `twiggy` tells you *why* code is big, but nothing says *stop shipping a bigger file*.
 - gzip matters: a 675 KB wasm is only ~241 KB over the wire.
 
+## Prior art
+
+Size-budget CI gates exist in the JavaScript world, and profilers exist in the
+Rust one — neither is shaped for a prebuilt `.wasm` artifact. If you only ship
+JS, use [`size-limit`](https://github.com/ai/size-limit); it is the mature tool
+for that.
+
+| Tool | What it is | Gap vs `wasmcheck` |
+|------|------------|--------------------|
+| [`size-limit`](https://github.com/ai/size-limit) | The JS perf-budget gate: gzip/brotli budgets, fails the PR | Needs Node + `package.json`; its `file` plugin can check existing artifacts, but budgets stay absolute — no baseline, no growth gate |
+| [`bundlesize`](https://github.com/siddharthkp/bundlesize) | Checks any file against a `maxSize` (gzip or brotli) | In maintenance mode; Node-based; no baseline, no growth gate |
+| [`bundlewatch`](https://github.com/bundlewatch/bundlewatch) | Size tracking for any files | Node-based; its state lives in an external service, not a committed file |
+| [`compressed-size-action`](https://github.com/preactjs/compressed-size-action) | GitHub Action reporting gzip/brotli on changed files | Report-and-comment; baseline is the PR base branch, no budget config, GitHub-Actions-only |
+| [`twiggy`](https://github.com/AlexEne/twiggy) | wasm code-size profiler | Explains *why* code is big, gates nothing (`--top` is a mini-`twiggy` baked into the gate) |
+| [`cargo-bloat`](https://github.com/RazrFalcon/cargo-bloat) | Binary size profiler for Rust (ELF/Mach-O/PE) | Profiler, not a gate — and it doesn't support WASM anyway |
+| `wasm-pack` / `trunk` / `dx` | Build tooling | Measure nothing, gate nothing |
+
+What `wasmcheck` adds on top: a single `cargo binstall`-able Rust binary pointed
+at whatever `.wasm` your build already produced, with both an absolute budget
+**and** a growth gate (`max_delta`) against a committed baseline — no Node in a
+Rust CI.
+
 ## Install
 
 ```sh
