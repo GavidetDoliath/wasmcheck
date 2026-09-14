@@ -45,14 +45,17 @@ impl ResolvedFile {
 
 /// The `.wasm` files directly inside `dir`, sorted by path.
 ///
-/// When nothing sits directly in `dir`, the search falls back one level deep
-/// into the conventional output directories `dir/dist` and `dir/target` —
-/// i.e. it finds `dist/app.wasm` or `target/app.wasm` without a config.
-/// Deeper tooling layouts (dx's `dist/assets/*.wasm`, cargo's
-/// `target/wasm32-unknown-unknown/release/*.wasm`) stay out of reach on
-/// purpose: auto-detection must stay predictable, and a shallow look cannot
-/// wander into `target/**` noise. Point the config `files` list at a glob
-/// such as `dist/assets/*.wasm` for those.
+/// When nothing sits directly in `dir`, the search falls back into the
+/// conventional Rust→wasm output spots:
+///
+/// - one level down: `dir/dist/*.wasm` and `dir/target/*.wasm`;
+/// - the cargo wasm layout: `dir/target/wasm32-unknown-unknown/{release,debug}/*.wasm`.
+///
+/// Deeper or hashed tooling layouts (dx's `dist/assets/app_bg-<hash>.wasm`,
+/// trunk's `dist/pkg-*`) stay out of reach: auto-detection must stay
+/// predictable, and the fallback must not wander into `target/**` noise.
+/// Point the config `files` list at a glob such as `dist/assets/*.wasm`, or
+/// pass `--file "target/**/*_bg-*.wasm"`, for those.
 ///
 /// The paths of the returned files keep their fallback prefix, so a hit in
 /// `dist` reads as `dist/app.wasm`.
@@ -86,6 +89,12 @@ pub fn find_wasm_files(dir: impl AsRef<Path>) -> Result<Vec<PathBuf>, WasmCheckE
                 entries.extend(found);
             }
         }
+        for sub in CARGO_WASM_DIRS {
+            let sub = dir.as_ref().join(sub);
+            if let Ok(found) = find_wasm_files(&sub) {
+                entries.extend(found);
+            }
+        }
         entries.sort();
     }
     Ok(entries)
@@ -94,6 +103,14 @@ pub fn find_wasm_files(dir: impl AsRef<Path>) -> Result<Vec<PathBuf>, WasmCheckE
 /// Conventional output directories the auto-detect fallback descends into,
 /// one level below the searched directory.
 const FALLBACK_DIRS: [&str; 2] = ["dist", "target"];
+
+/// Exact cargo output directories for wasm targets. Only reached when the
+/// searched directory itself holds no `.wasm` file, so this cannot be fooled
+/// by an unrelated `target/**` layout.
+const CARGO_WASM_DIRS: [&str; 2] = [
+    "target/wasm32-unknown-unknown/release",
+    "target/wasm32-unknown-unknown/debug",
+];
 
 /// Decides which `.wasm` files a run should measure.
 ///
@@ -107,7 +124,9 @@ const FALLBACK_DIRS: [&str; 2] = ["dist", "target"];
 ///    each entry is a path or a glob, and every file matched by a glob shares
 ///    that glob as its [`ResolvedFile::key`];
 /// 3. otherwise, a single `.wasm` file auto-detected in `config_dir`, falling
-///    back one level into its `dist/` and `target/` subdirectories.
+///    back into its `dist/` and `target/` subdirectories — one level deep, or
+///    exactly at the cargo wasm layout
+///    `target/wasm32-unknown-unknown/{release,debug}/`.
 ///
 /// # Errors
 ///
@@ -376,6 +395,33 @@ mod tests {
 
         fs::remove_dir_all(&dir).expect("cleanup");
     }
+    #[test]
+    fn finds_the_cargo_wasm_layout() {
+        let dir = std::env::temp_dir().join("wasmcheck-cargo-wasm-layout");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("target")
+                .join("wasm32-unknown-unknown")
+                .join("release")
+                .join("app.wasm")
+                .display()
+                .to_string(),
+            b"\0asm stub",
+        );
+
+        let found = find_wasm_files(&dir).expect("find");
+        assert_eq!(
+            found,
+            vec![
+                dir.join("target")
+                    .join("wasm32-unknown-unknown")
+                    .join("release")
+                    .join("app.wasm")
+            ]
+        );
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
 
     #[test]
     fn deeper_tooling_layouts_stay_out_of_reach() {
@@ -393,6 +439,26 @@ mod tests {
         // Two levels below `dist`, i.e. three below the search dir: past the
         // one-level fallback, by design.
         assert!(find_wasm_files(&dir).expect("find").is_empty());
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn cargo_debug_layout_is_found_too() {
+        let dir = std::env::temp_dir().join("wasmcheck-cargo-debug-layout");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("target")
+                .join("wasm32-unknown-unknown")
+                .join("debug")
+                .join("app.wasm")
+                .display()
+                .to_string(),
+            b"\0asm stub",
+        );
+
+        let found = find_wasm_files(&dir).expect("find");
+        assert_eq!(found.len(), 1);
 
         fs::remove_dir_all(&dir).expect("cleanup");
     }

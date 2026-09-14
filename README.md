@@ -51,7 +51,10 @@ cargo install --git https://github.com/GavidetDoliath/wasmcheck
 
 ```sh
 # 1. Create .wasmcheck.json with current sizes as the baseline
-wasmcheck init --file target/wasm32-unknown-unknown/release/app.wasm
+wasmcheck init --file "target/**/*_bg-*.wasm"   # hashed wasm-bindgen output
+wasmcheck init                                   # zero-arg: finds dist/*.wasm,
+                                                 # target/*.wasm, or the cargo
+                                                 # wasm layout automatically
 
 # 2. Tune the budget (edit in .wasmcheck.json)
 #    "budget": { "raw": "700 KB", "gzip": "250 KB" }
