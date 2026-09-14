@@ -99,6 +99,10 @@ when the run passes.
 - `LICENSE-MIT` and `LICENSE-APACHE` for the declared `MIT OR Apache-2.0`.
 - crates.io metadata (`keywords`, `categories`, `readme`, `documentation`,
   `rust-version`) and an `include` list.
+- README: a "Prior art" section comparing the existing JS size-budget gates
+  ([size-limit](https://github.com/ai/size-limit), bundlesize, bundlewatch,
+  compressed-size-action) and Rust profilers (twiggy, cargo-bloat), and what
+  `wasmcheck` adds for wasm artifacts.
 
 ## [0.1.0] - 2026-09-13
 
