@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-14
+
 ### Fixed
 
 - `init` no longer seeds a budget that fails immediately: the raw budget is
