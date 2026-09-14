@@ -73,6 +73,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Auto-detect falls back one level into `dist/` and `target/`: when no `.wasm`
+  sits directly in the searched directory, `wasmcheck init` and `check` now
+  find `dist/app.wasm` or `target/app.wasm` instead of failing with
+  `no .wasm file found`. Deeper tooling layouts (`dist/assets/*.wasm`,
+  `target/wasm32-unknown-unknown/release/*.wasm`) stay out of reach on
+  purpose — point the config `files` list at a glob for those.
+- `--file` accepts a **glob**, exactly like the config `files` list:
+  `wasmcheck check --file "dist/*_bg-*.wasm"`. Every file a glob matches
+  shares the glob as its baseline key, so `init --file "dist/*_bg-*.wasm"`
+  records the glob and a rebuild under a new content hash keeps its delta.
+- The `no .wasm file found` error now carries three tips: pass `--file` with
+  the artifact path, use a glob in `--file`, or list paths and globs under
+  `files` in `.wasmcheck.json`.
 - A `max_delta` regression gate: `wasmcheck check --max-delta "50 KB"`, or the
   per-metric `max_delta` config key, fails the run when a bundle grows past the
   allowed amount over its committed baseline — even while well inside its

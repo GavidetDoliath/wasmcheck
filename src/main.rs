@@ -20,7 +20,7 @@ const UNCHECKED: &str = "unchecked";
 #[derive(Parser)]
 #[command(name = "wasmcheck", version, about = "WASM bundle size budget checker")]
 struct Cli {
-    /// Path to a specific .wasm file
+    /// Path (or glob) to the .wasm file(s) to check
     #[arg(short, long)]
     file: Option<String>,
 
@@ -74,7 +74,7 @@ enum Commands {
 
 #[derive(Args)]
 struct CheckArgs {
-    /// Path to a specific .wasm file
+    /// Path (or glob) to the .wasm file(s) to check
     #[arg(short, long)]
     file: Option<String>,
 
@@ -123,7 +123,7 @@ struct InitArgs {
     #[arg(short, long)]
     config: Option<String>,
 
-    /// Path to a specific .wasm file
+    /// Path (or glob) to the .wasm file(s) to record
     #[arg(short, long)]
     file: Option<String>,
 

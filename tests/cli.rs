@@ -120,6 +120,22 @@ fn empty_dir_errors() {
     assert!(msg.contains("no .wasm file"), "{msg}");
 }
 
+/// The dead-end error should point at the way out: --file, --file globs, or
+/// the config `files` list.
+#[test]
+fn no_wasm_error_carries_three_tips() {
+    let d = TestDir::new("empty_tips");
+    let (code, msg) = run_in(d.path(), &[]);
+    assert_ne!(code, 0);
+    assert!(msg.contains("--file"), "{msg}");
+    assert!(
+        msg.contains("target/wasm32-unknown-unknown/release"),
+        "{msg}"
+    );
+    assert!(msg.contains("globs"), "{msg}");
+    assert!(msg.contains(".wasmcheck.json"), "{msg}");
+}
+
 #[test]
 fn single_wasm_auto_detected() {
     let d = TestDir::new("single");
@@ -621,6 +637,72 @@ fn glob_files_in_config() {
     let (code, msg) = run_in(d.path(), &["check"]);
     assert_eq!(code, 0, "{msg}");
     assert!(msg.contains("app_bg-abc1234.wasm"), "{msg}");
+}
+
+/// `--file` accepts the same globs the config `files` list does.
+#[test]
+fn file_flag_accepts_a_glob() {
+    let d = TestDir::new("file_glob");
+    d.write_wasm("app_bg-aaa.wasm", 10 * 1024);
+    d.write_wasm("app_bg-bbb.wasm", 12 * 1024);
+    d.write_wasm("other.txt", 50);
+
+    let (code, msg) = run_in(d.path(), &["--file", "*_bg-*.wasm", "--budget", "100 KB"]);
+    assert_eq!(code, 0, "{msg}");
+    assert!(msg.contains("app_bg-aaa.wasm"), "{msg}");
+    assert!(msg.contains("app_bg-bbb.wasm"), "{msg}");
+    assert!(!msg.contains("other.txt"), "{msg}");
+}
+
+#[test]
+fn file_glob_without_a_match_errors() {
+    let d = TestDir::new("file_glob_nomatch");
+    d.write_wasm("app.wasm", 10 * 1024);
+
+    let (code, msg) = run_in(d.path(), &["--file", "nope-*.wasm"]);
+    assert_ne!(code, 0);
+    assert!(msg.contains("no .wasm file"), "{msg}");
+}
+
+/// `init --file <glob>` records the glob itself as the config entry and the
+/// baseline key, so a rebuild under a new content hash keeps its delta.
+#[test]
+fn init_with_a_glob_records_the_glob_as_key() {
+    let d = TestDir::new("init_glob");
+    d.write_wasm("app_bg-aaa.wasm", 10 * 1024);
+
+    let (code, msg) = run_in(d.path(), &["init", "--file", "*_bg-*.wasm"]);
+    assert_eq!(code, 0, "{msg}");
+
+    let cfg = d.read_config(&d.path().join(".wasmcheck.json"));
+    assert_eq!(
+        cfg["files"][0].as_str().unwrap(),
+        "*_bg-*.wasm",
+        "the glob, not the hashed filename, is recorded: {cfg}"
+    );
+    assert_eq!(
+        read_baseline(&d.path().join(".wasmcheck.json"))["*_bg-*.wasm"]["raw"]
+            .as_u64()
+            .unwrap(),
+        10 * 1024
+    );
+
+    // Widen the seeded budget so the rebuild only exercises the delta.
+    let config_path = d.path().join(".wasmcheck.json");
+    let mut cfg = d.read_config(&config_path);
+    cfg["budget"]["raw"] = serde_json::json!("100 KB");
+    fs::write(&config_path, cfg.to_string()).unwrap();
+
+    // A rebuild produces the same bundle under a new content hash.
+    fs::remove_file(d.path().join("app_bg-aaa.wasm")).unwrap();
+    d.write_wasm("app_bg-bbb.wasm", 12 * 1024);
+
+    let (code, msg) = run_in(d.path(), &["check"]);
+    assert_eq!(code, 0, "{msg}");
+    assert!(
+        msg.contains("+2.00 KB"),
+        "delta against the previous build survives the new hash: {msg}"
+    );
 }
 
 #[test]

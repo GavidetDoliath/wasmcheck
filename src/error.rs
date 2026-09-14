@@ -22,7 +22,14 @@ use std::path::PathBuf;
 #[non_exhaustive]
 pub enum WasmCheckError {
     /// No `.wasm` file was found in the directory that was searched.
-    #[error("no .wasm file found in `{}`", .dir.display())]
+    ///
+    /// The message carries the three ways out, so a first run on a real
+    /// project — where the artifact lives under `dist/` or `target/` — points
+    /// at the fix instead of dead-ending.
+    #[error(
+        "no .wasm file found in `{}`\n  tip: pass --file with the artifact path, e.g. target/wasm32-unknown-unknown/release/app.wasm\n  tip: --file accepts globs, e.g. --file \"dist/*_bg-*.wasm\"\n  tip: or list paths and globs under `files` in .wasmcheck.json",
+        .dir.display()
+    )]
     NoWasmFound {
         /// The directory that was searched.
         dir: PathBuf,

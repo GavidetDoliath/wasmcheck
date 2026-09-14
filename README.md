@@ -72,7 +72,7 @@ wasmcheck baseline [--file] [--config]   # refresh baseline in existing config
 
 | Flag | Meaning |
 |------|---------|
-| `--file <path>` | check a specific `.wasm` file (else config `files`, else auto-detect) |
+| `--file <path>` | check a specific `.wasm` file — a **glob** works too, like the config `files` list (else config `files`, else auto-detect) |
 | `--budget "250 KB"` | raw size budget, overrides the config's raw limit |
 | `--max-delta "50 KB"` | fail when a file grows more than SIZE over its baseline, even under budget (raw size; `"5%"` works too) |
 | `--strict` | fail when a checked file has no baseline entry |

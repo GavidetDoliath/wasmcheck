@@ -45,12 +45,22 @@ impl ResolvedFile {
 
 /// The `.wasm` files directly inside `dir`, sorted by path.
 ///
-/// The search is not recursive: point the config `files` list at a glob such as
-/// `dist/assets/*.wasm` to reach into subdirectories.
+/// When nothing sits directly in `dir`, the search falls back one level deep
+/// into the conventional output directories `dir/dist` and `dir/target` —
+/// i.e. it finds `dist/app.wasm` or `target/app.wasm` without a config.
+/// Deeper tooling layouts (dx's `dist/assets/*.wasm`, cargo's
+/// `target/wasm32-unknown-unknown/release/*.wasm`) stay out of reach on
+/// purpose: auto-detection must stay predictable, and a shallow look cannot
+/// wander into `target/**` noise. Point the config `files` list at a glob
+/// such as `dist/assets/*.wasm` for those.
+///
+/// The paths of the returned files keep their fallback prefix, so a hit in
+/// `dist` reads as `dist/app.wasm`.
 ///
 /// # Errors
 ///
-/// Returns [`WasmCheckError::Io`] when `dir` cannot be read.
+/// Returns [`WasmCheckError::Io`] when `dir` cannot be read. Unreadable
+/// fallback subdirectories are skipped.
 ///
 /// # Examples
 ///
@@ -68,19 +78,36 @@ pub fn find_wasm_files(dir: impl AsRef<Path>) -> Result<Vec<PathBuf>, WasmCheckE
         .filter(|path| path.extension().is_some_and(|ext| ext == "wasm"))
         .collect();
     entries.sort();
+
+    if entries.is_empty() {
+        for sub in FALLBACK_DIRS {
+            let sub = dir.as_ref().join(sub);
+            if let Ok(found) = find_wasm_files(&sub) {
+                entries.extend(found);
+            }
+        }
+        entries.sort();
+    }
     Ok(entries)
 }
+
+/// Conventional output directories the auto-detect fallback descends into,
+/// one level below the searched directory.
+const FALLBACK_DIRS: [&str; 2] = ["dist", "target"];
 
 /// Decides which `.wasm` files a run should measure.
 ///
 /// Resolution order:
 ///
-/// 1. `cli_file`, when given on the command line (relative to the current
-///    working directory);
+/// 1. `cli_file`, when given on the command line — a path **or a glob**, like
+///    the config entries; every file matched by a glob shares that glob as its
+///    [`ResolvedFile::key`], so `init --file "dist/*_bg-*.wasm"` records the
+///    glob itself and a rebuild under a new content hash keeps its delta;
 /// 2. the `files` list of `config`, resolved **relative to `config_dir`** —
 ///    each entry is a path or a glob, and every file matched by a glob shares
 ///    that glob as its [`ResolvedFile::key`];
-/// 3. otherwise, a single `.wasm` file auto-detected in `config_dir`.
+/// 3. otherwise, a single `.wasm` file auto-detected in `config_dir`, falling
+///    back one level into its `dist/` and `target/` subdirectories.
 ///
 /// # Errors
 ///
@@ -109,6 +136,26 @@ pub fn resolve_files(
     let base = normalized_dir(config_dir);
 
     if let Some(file) = cli_file {
+        if is_glob(file) {
+            let pattern = glob_pattern(&base, file);
+            let matches = glob::glob(&pattern)
+                .map_err(|e| WasmCheckError::Io(std::io::Error::other(e.to_string())))?;
+            let mut resolved = Vec::new();
+            for path in matches.filter_map(Result::ok).filter(|p| p.is_file()) {
+                resolved.push(ResolvedFile {
+                    key: file.to_string(),
+                    path: clean(&path),
+                });
+            }
+            resolved.sort_by(|a, b| a.path.cmp(&b.path));
+            resolved.dedup();
+            if resolved.is_empty() {
+                return Err(WasmCheckError::NoWasmFound {
+                    dir: display_dir(&base),
+                });
+            }
+            return Ok(resolved);
+        }
         let path = clean(Path::new(file));
         if !path.is_file() {
             return Err(WasmCheckError::FileNotFound(path));
@@ -164,10 +211,17 @@ pub fn resolve_files(
         [] => Err(WasmCheckError::NoWasmFound {
             dir: display_dir(&base),
         }),
-        [only] => Ok(vec![ResolvedFile {
-            key: file_name(only),
-            path: clean(only),
-        }]),
+        [only] => {
+            let path = clean(only);
+            Ok(vec![ResolvedFile {
+                // The path relative to the config dir, not the bare file
+                // name: `init` records it in the config `files` list, and a
+                // fallback hit in `dist/` or `target/` must resolve again on
+                // the next run.
+                key: key_for(&path, &base),
+                path,
+            }])
+        }
         many => Err(WasmCheckError::MultipleWasmFound {
             found: many.iter().map(|p| p.display().to_string()).collect(),
         }),
@@ -209,14 +263,137 @@ fn key_for(path: &Path, base: &Path) -> String {
     }
 }
 
-fn file_name(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.display().to_string())
-}
-
 fn clean(path: &Path) -> PathBuf {
     path.strip_prefix(".")
         .map(Path::to_path_buf)
         .unwrap_or_else(|_| path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::fs;
+
+    /// Creates `path` with the given contents, creating parent directories.
+    fn write(path: &str, contents: &[u8]) {
+        if let Some(parent) = Path::new(path).parent() {
+            fs::create_dir_all(parent).expect("create parent dirs");
+        }
+        fs::write(path, contents).expect("write file");
+    }
+
+    #[test]
+    fn finds_wasm_directly_in_dir() {
+        let dir = std::env::temp_dir().join("wasmcheck-direct");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create dir");
+        write(&dir.join("app.wasm").display().to_string(), b"\0asm stub");
+
+        let found = find_wasm_files(&dir).expect("find");
+        assert_eq!(found, vec![dir.join("app.wasm")]);
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn falls_back_one_level_into_dist() {
+        let dir = std::env::temp_dir().join("wasmcheck-fallback-dist");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("dist").join("app.wasm").display().to_string(),
+            b"\0asm stub",
+        );
+
+        let found = find_wasm_files(&dir).expect("find");
+        assert_eq!(found, vec![dir.join("dist").join("app.wasm")]);
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+    #[test]
+    fn falls_back_one_level_into_target() {
+        let dir = std::env::temp_dir().join("wasmcheck-fallback-target");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("target").join("app.wasm").display().to_string(),
+            b"\0asm stub",
+        );
+
+        let found = find_wasm_files(&dir).expect("find");
+        assert_eq!(found, vec![dir.join("target").join("app.wasm")]);
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn does_not_recurse_past_one_level() {
+        let dir = std::env::temp_dir().join("wasmcheck-too-deep");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("build")
+                .join("output")
+                .join("app.wasm")
+                .display()
+                .to_string(),
+            b"\0asm stub",
+        );
+
+        assert!(find_wasm_files(&dir).expect("find").is_empty());
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn direct_files_win_over_fallback() {
+        let dir = std::env::temp_dir().join("wasmcheck-direct-wins");
+        let _ = fs::remove_dir_all(&dir);
+        write(&dir.join("top.wasm").display().to_string(), b"\0asm stub");
+        write(
+            &dir.join("dist").join("app.wasm").display().to_string(),
+            b"\0asm stub",
+        );
+
+        let found = find_wasm_files(&dir).expect("find");
+        assert_eq!(found, vec![dir.join("top.wasm")]);
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn fallback_key_is_relative_to_the_search_dir() {
+        let dir = std::env::temp_dir().join("wasmcheck-fallback-key");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("dist").join("app.wasm").display().to_string(),
+            b"\0asm stub",
+        );
+
+        let resolved = resolve_files(None, None, &dir).expect("resolve");
+        assert_eq!(resolved.len(), 1);
+        // `init` writes this key into the config `files` list; it must resolve
+        // again relative to the config dir on the next run.
+        assert_eq!(resolved[0].key(), "dist/app.wasm");
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn deeper_tooling_layouts_stay_out_of_reach() {
+        let dir = std::env::temp_dir().join("wasmcheck-nested-in-fallback");
+        let _ = fs::remove_dir_all(&dir);
+        write(
+            &dir.join("dist")
+                .join("assets")
+                .join("app.wasm")
+                .display()
+                .to_string(),
+            b"\0asm stub",
+        );
+
+        // Two levels below `dist`, i.e. three below the search dir: past the
+        // one-level fallback, by design.
+        assert!(find_wasm_files(&dir).expect("find").is_empty());
+
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
 }
