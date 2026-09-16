@@ -13,9 +13,13 @@ use wasmcheck::{
 };
 
 /// Run-level and per-file verdicts used by the JSON output.
-const PASS: &str = "pass";
-const FAIL: &str = "fail";
-const UNCHECKED: &str = "unchecked";
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum Status {
+    Pass,
+    Fail,
+    Unchecked,
+}
 
 #[derive(Parser)]
 #[command(name = "wasmcheck", version, about = "WASM bundle size budget checker")]
@@ -144,7 +148,7 @@ enum Format {
 /// output stays parseable whatever the number of files.
 #[derive(Serialize)]
 struct JsonRun<'a> {
-    status: &'static str,
+    status: Status,
     /// The compression the numbers were measured with, so a CI report can be
     /// reproduced.
     compression: Compression,
@@ -171,7 +175,7 @@ struct JsonFile<'a> {
     delta_exceeded: Vec<Metric>,
     #[serde(skip_serializing_if = "is_false")]
     baseline_missing: bool,
-    status: &'static str,
+    status: Status,
     #[serde(skip_serializing_if = "Option::is_none")]
     top: Option<Vec<JsonFunction>>,
 }
@@ -499,12 +503,12 @@ fn print_json_run(
         });
     }
 
-    let status = if files.iter().any(|file| file.status == FAIL) {
-        FAIL
+    let status = if files.iter().any(|file| file.status == Status::Fail) {
+        Status::Fail
     } else if gates.enabled() {
-        PASS
+        Status::Pass
     } else {
-        UNCHECKED
+        Status::Unchecked
     };
 
     println!(
@@ -562,13 +566,13 @@ fn print_github_run(measured: &[Measured<'_>], gates: &Gates<'_>) -> Result<(), 
     Ok(())
 }
 
-fn file_status(entry: &Measured<'_>, gates: &Gates<'_>) -> &'static str {
+fn file_status(entry: &Measured<'_>, gates: &Gates<'_>) -> Status {
     if !gates.enabled() {
-        UNCHECKED
+        Status::Unchecked
     } else if entry.failed() {
-        FAIL
+        Status::Fail
     } else {
-        PASS
+        Status::Pass
     }
 }
 

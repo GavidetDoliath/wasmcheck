@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-16
+
+### Changed
+
+- JSON run and file verdicts now use a typed internal enum instead of string
+  sentinels. The serialized `"pass"`, `"fail"`, and `"unchecked"` values are
+  unchanged.
+
 ## [0.1.2] - 2026-09-14
 
 ### Added

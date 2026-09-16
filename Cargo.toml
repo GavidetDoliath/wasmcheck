@@ -1,6 +1,6 @@
 [package]
 name = "wasmcheck"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 # Not 1.85: `wasmparser` 0.259 (used by `--top`) declares 1.88, and Cargo
 # refuses to build a graph containing a package with a newer MSRV. Verified by
